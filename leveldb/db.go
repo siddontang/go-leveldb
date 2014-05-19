@@ -35,6 +35,8 @@ type DB struct {
 	writeOpts    *WriteOptions
 	iteratorOpts *ReadOptions
 
+	syncWriteOpts *WriteOptions
+
 	cache *Cache
 
 	filter *FilterPolicy
@@ -58,8 +60,12 @@ func OpenWithConfig(cfg *Config) (*DB, error) {
 
 	db.readOpts = NewReadOptions()
 	db.writeOpts = NewWriteOptions()
+
 	db.iteratorOpts = NewReadOptions()
 	db.iteratorOpts.SetFillCache(false)
+
+	db.syncWriteOpts = NewWriteOptions()
+	db.syncWriteOpts.SetSync(true)
 
 	var errStr *C.char
 	ldbname := C.CString(cfg.Path)
@@ -116,6 +122,7 @@ func (db *DB) Close() {
 	db.readOpts.Close()
 	db.writeOpts.Close()
 	db.iteratorOpts.Close()
+	db.syncWriteOpts.Close()
 
 	C.leveldb_close(db.db)
 	db.db = nil
@@ -151,12 +158,20 @@ func (db *DB) Put(key, value []byte) error {
 	return db.put(db.writeOpts, key, value)
 }
 
+func (db *DB) SyncPut(key, value []byte) error {
+	return db.put(db.syncWriteOpts, key, value)
+}
+
 func (db *DB) Get(key []byte) ([]byte, error) {
 	return db.get(db.readOpts, key)
 }
 
 func (db *DB) Delete(key []byte) error {
 	return db.delete(db.writeOpts, key)
+}
+
+func (db *DB) SyncDelete(key []byte) error {
+	return db.delete(db.syncWriteOpts, key)
 }
 
 func (db *DB) NewWriteBatch() *WriteBatch {

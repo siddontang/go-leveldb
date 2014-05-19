@@ -38,14 +38,22 @@ func (w *WriteBatch) Delete(key []byte) {
 }
 
 func (w *WriteBatch) Commit() error {
-	var errStr *C.char
-	C.leveldb_write(w.db.db, w.db.writeOpts.Opt, w.wbatch, &errStr)
-	if errStr != nil {
-		return saveError(errStr)
-	}
-	return nil
+	return w.commit(w.db.writeOpts)
+}
+
+func (w *WriteBatch) SyncCommit() error {
+	return w.commit(w.db.syncWriteOpts)
 }
 
 func (w *WriteBatch) Rollback() {
 	C.leveldb_writebatch_clear(w.wbatch)
+}
+
+func (w *WriteBatch) commit(wb *WriteOptions) error {
+	var errStr *C.char
+	C.leveldb_write(w.db.db, wb.Opt, w.wbatch, &errStr)
+	if errStr != nil {
+		return saveError(errStr)
+	}
+	return nil
 }
