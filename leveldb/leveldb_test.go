@@ -220,6 +220,21 @@ func TestSnapshot(t *testing.T) {
 func TestDestroy(t *testing.T) {
 	db := getTestDB()
 
+	db.Put([]byte("a"), []byte("1"))
+	if err := db.Clear(); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(db.cfg.Path); err != nil {
+		t.Fatal("must exist ", err.Error())
+	}
+
+	if v, err := db.Get([]byte("a")); err != nil {
+		t.Fatal(err)
+	} else if string(v) == "1" {
+		t.Fatal(string(v))
+	}
+
 	db.Destroy()
 
 	if _, err := os.Stat(db.cfg.Path); !os.IsNotExist(err) {

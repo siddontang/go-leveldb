@@ -56,7 +56,15 @@ func OpenWithConfig(cfg *Config) (*DB, error) {
 	db := new(DB)
 	db.cfg = cfg
 
-	db.opts = db.initOptions(cfg)
+	if err := db.open(); err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func (db *DB) open() error {
+	db.opts = db.initOptions(db.cfg)
 
 	db.readOpts = NewReadOptions()
 	db.writeOpts = NewWriteOptions()
@@ -68,15 +76,14 @@ func OpenWithConfig(cfg *Config) (*DB, error) {
 	db.syncWriteOpts.SetSync(true)
 
 	var errStr *C.char
-	ldbname := C.CString(cfg.Path)
+	ldbname := C.CString(db.cfg.Path)
 	defer C.leveldb_free(unsafe.Pointer(ldbname))
 
 	db.db = C.leveldb_open(db.opts.Opt, ldbname, &errStr)
 	if errStr != nil {
-		return nil, saveError(errStr)
+		return saveError(errStr)
 	}
-
-	return db, nil
+	return nil
 }
 
 func (db *DB) initOptions(cfg *Config) *Options {
@@ -147,11 +154,10 @@ func (db *DB) Destroy() error {
 	return nil
 }
 
-func (db *DB) Clear() {
-	it := db.Iterator(nil, nil, 0, 0, -1)
-	for ; it.Valid(); it.Next() {
-		db.Delete(it.Key())
-	}
+func (db *DB) Clear() error {
+	db.Destroy()
+
+	return db.open()
 }
 
 func (db *DB) Put(key, value []byte) error {
