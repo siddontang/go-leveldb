@@ -8,6 +8,7 @@ import "C"
 
 import (
 	"encoding/json"
+	"os"
 	"unsafe"
 )
 
@@ -53,6 +54,10 @@ func Open(configJson json.RawMessage) (*DB, error) {
 }
 
 func OpenWithConfig(cfg *Config) (*DB, error) {
+	if err := os.MkdirAll(cfg.Path, os.ModePerm); err != nil {
+		return nil, err
+	}
+
 	db := new(DB)
 	db.cfg = cfg
 
@@ -155,9 +160,26 @@ func (db *DB) Destroy() error {
 }
 
 func (db *DB) Clear() error {
-	db.Destroy()
+	bc := db.NewWriteBatch()
+	defer bc.Close()
 
-	return db.open()
+	var err error
+	it := db.Iterator(nil, nil, RangeClose, 0, -1)
+	num := 0
+	for ; it.Valid(); it.Next() {
+		bc.Delete(it.Key())
+		num++
+		if num == 1000 {
+			num = 0
+			if err = bc.Commit(); err != nil {
+				return err
+			}
+		}
+	}
+
+	err = bc.Commit()
+
+	return err
 }
 
 func (db *DB) Put(key, value []byte) error {
