@@ -1,13 +1,8 @@
 package leveldb
 
-// #cgo LDFLAGS: -lleveldb
-// #include <stdlib.h>
-// #include "leveldb/c.h"
-import "C"
-
 import (
 	"bytes"
-	"unsafe"
+	"github.com/syndtr/goleveldb/leveldb/iterator"
 )
 
 const (
@@ -36,7 +31,7 @@ type Range struct {
 }
 
 type Iterator struct {
-	it *C.leveldb_iterator_t
+	it iterator.Iterator
 
 	r *Range
 
@@ -47,31 +42,20 @@ type Iterator struct {
 
 	//0 for IteratorForward, 1 for IteratorBackward
 	direction uint8
+
+	itValid bool
 }
 
 func (it *Iterator) Key() []byte {
-	var klen C.size_t
-	kdata := C.leveldb_iter_key(it.it, &klen)
-	if kdata == nil {
-		return nil
-	}
-
-	return C.GoBytes(unsafe.Pointer(kdata), C.int(klen))
+	return append([]byte{}, it.it.Key()...)
 }
 
 func (it *Iterator) Value() []byte {
-	var vlen C.size_t
-	vdata := C.leveldb_iter_value(it.it, &vlen)
-	if vdata == nil {
-		return nil
-	}
-
-	return C.GoBytes(unsafe.Pointer(vdata), C.int(vlen))
+	return append([]byte{}, it.it.Value()...)
 }
 
 func (it *Iterator) Close() {
-	C.leveldb_iter_destroy(it.it)
-	it.it = nil
+	it.it.Release()
 }
 
 func (it *Iterator) Valid() bool {
@@ -85,7 +69,7 @@ func (it *Iterator) Valid() bool {
 
 	if it.direction == IteratorForward {
 		if it.r.Max != nil {
-			r := bytes.Compare(it.Key(), it.r.Max)
+			r := bytes.Compare(it.it.Key(), it.r.Max)
 			if it.r.Type&RangeROpen > 0 {
 				return !(r >= 0)
 			} else {
@@ -94,7 +78,7 @@ func (it *Iterator) Valid() bool {
 		}
 	} else {
 		if it.r.Min != nil {
-			r := bytes.Compare(it.Key(), it.r.Min)
+			r := bytes.Compare(it.it.Key(), it.r.Min)
 			if it.r.Type&RangeLOpen > 0 {
 				return !(r <= 0)
 			} else {
@@ -117,33 +101,33 @@ func (it *Iterator) Next() {
 }
 
 func (it *Iterator) valid() bool {
-	return ucharToBool(C.leveldb_iter_valid(it.it))
+	return it.itValid
 }
 
 func (it *Iterator) next() {
-	C.leveldb_iter_next(it.it)
+	it.itValid = it.it.Next()
 }
 
 func (it *Iterator) prev() {
-	C.leveldb_iter_prev(it.it)
+	it.itValid = it.it.Prev()
 }
 
 func (it *Iterator) seekToFirst() {
-	C.leveldb_iter_seek_to_first(it.it)
+	it.itValid = it.it.First()
 }
 
 func (it *Iterator) seekToLast() {
-	C.leveldb_iter_seek_to_last(it.it)
+	it.itValid = it.it.Last()
 }
 
 func (it *Iterator) seek(key []byte) {
-	C.leveldb_iter_seek(it.it, (*C.char)(unsafe.Pointer(&key[0])), C.size_t(len(key)))
+	it.itValid = it.it.Seek(key)
 }
 
-func newIterator(db *DB, opts *ReadOptions, r *Range, offset int, limit int, direction uint8) *Iterator {
+func newIterator(i iterator.Iterator, r *Range, offset int, limit int, direction uint8) *Iterator {
 	it := new(Iterator)
 
-	it.it = C.leveldb_create_iterator(db.db, opts.Opt)
+	it.it = i
 
 	it.r = r
 	it.offset = offset
@@ -151,6 +135,8 @@ func newIterator(db *DB, opts *ReadOptions, r *Range, offset int, limit int, dir
 	it.direction = direction
 
 	it.step = 0
+
+	it.itValid = true
 
 	if offset < 0 {
 		return it
@@ -163,7 +149,7 @@ func newIterator(db *DB, opts *ReadOptions, r *Range, offset int, limit int, dir
 			it.seek(r.Min)
 
 			if r.Type&RangeLOpen > 0 {
-				if it.valid() && bytes.Equal(it.Key(), r.Min) {
+				if it.valid() && bytes.Equal(it.it.Key(), r.Min) {
 					it.next()
 				}
 			}
@@ -177,13 +163,13 @@ func newIterator(db *DB, opts *ReadOptions, r *Range, offset int, limit int, dir
 			if !it.valid() {
 				it.seekToLast()
 			} else {
-				if !bytes.Equal(it.Key(), r.Max) {
+				if !bytes.Equal(it.it.Key(), r.Max) {
 					it.prev()
 				}
 			}
 
 			if r.Type&RangeROpen > 0 {
-				if it.valid() && bytes.Equal(it.Key(), r.Max) {
+				if it.valid() && bytes.Equal(it.it.Key(), r.Max) {
 					it.prev()
 				}
 			}

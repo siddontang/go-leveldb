@@ -1,34 +1,27 @@
 package leveldb
 
-// #cgo LDFLAGS: -lleveldb
-// #include <stdint.h>
-// #include "leveldb/c.h"
-import "C"
+import (
+	"github.com/syndtr/goleveldb/leveldb"
+)
 
 type Snapshot struct {
-	db *DB
-
-	snap *C.leveldb_snapshot_t
-
+	s            *leveldb.Snapshot
 	readOpts     *ReadOptions
 	iteratorOpts *ReadOptions
 }
 
 func (s *Snapshot) Close() {
-	C.leveldb_release_snapshot(s.db.db, s.snap)
-
-	s.iteratorOpts.Close()
-	s.readOpts.Close()
+	s.s.Release()
 }
 
 func (s *Snapshot) Get(key []byte) ([]byte, error) {
-	return s.db.get(s.readOpts, key)
+	return s.s.Get(key, s.readOpts.Opt)
 }
 
 func (s *Snapshot) Iterator(min []byte, max []byte, rangeType uint8, offset int, limit int) *Iterator {
-	return newIterator(s.db, s.iteratorOpts, &Range{min, max, rangeType}, offset, limit, IteratorForward)
+	return newIterator(s.s.NewIterator(nil, s.iteratorOpts.Opt), &Range{min, max, rangeType}, offset, limit, IteratorForward)
 }
 
 func (s *Snapshot) RevIterator(min []byte, max []byte, rangeType uint8, offset int, limit int) *Iterator {
-	return newIterator(s.db, s.iteratorOpts, &Range{min, max, rangeType}, offset, limit, IteratorBackward)
+	return newIterator(s.s.NewIterator(nil, s.iteratorOpts.Opt), &Range{min, max, rangeType}, offset, limit, IteratorBackward)
 }

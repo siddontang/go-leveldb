@@ -1,19 +1,17 @@
 package leveldb
 
-// #cgo LDFLAGS: -lleveldb
-// #include <stdlib.h>
-// #include "leveldb/c.h"
-import "C"
+import (
+	"github.com/syndtr/goleveldb/leveldb/filter"
+)
 
 type FilterPolicy struct {
-	Policy *C.leveldb_filterpolicy_t
+	f filter.Filter
 }
 
 func NewBloomFilter(bitsPerKey int) *FilterPolicy {
-	policy := C.leveldb_filterpolicy_create_bloom(C.int(bitsPerKey))
-	return &FilterPolicy{policy}
+	return &FilterPolicy{filter.NewBloomFilter(bitsPerKey)}
 }
 
 func (fp *FilterPolicy) Close() {
-	C.leveldb_filterpolicy_destroy(fp.Policy)
+
 }

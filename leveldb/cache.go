@@ -1,18 +1,17 @@
 package leveldb
 
-// #cgo LDFLAGS: -lleveldb
-// #include <stdint.h>
-// #include "leveldb/c.h"
-import "C"
+import (
+	"github.com/syndtr/goleveldb/leveldb/cache"
+)
 
 type Cache struct {
-	Cache *C.leveldb_cache_t
+	c cache.Cache
 }
 
 func NewLRUCache(capacity int) *Cache {
-	return &Cache{C.leveldb_cache_create_lru(C.size_t(capacity))}
+	return &Cache{cache.NewLRUCache(capacity)}
 }
 
 func (c *Cache) Close() {
-	C.leveldb_cache_destroy(c.Cache)
+
 }

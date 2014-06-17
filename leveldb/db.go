@@ -1,15 +1,14 @@
 package leveldb
 
-/*
-#cgo LDFLAGS: -lleveldb
-#include <leveldb/c.h>
-*/
-import "C"
-
 import (
 	"encoding/json"
+	"errors"
+	"github.com/syndtr/goleveldb/leveldb"
 	"os"
-	"unsafe"
+)
+
+var (
+	ErrNotImplemented = errors.New("function not implemented")
 )
 
 const defaultFilterBits int = 10
@@ -27,7 +26,7 @@ type Config struct {
 type DB struct {
 	cfg *Config
 
-	db *C.leveldb_t
+	db *leveldb.DB
 
 	opts *Options
 
@@ -80,15 +79,10 @@ func (db *DB) open() error {
 	db.syncWriteOpts = NewWriteOptions()
 	db.syncWriteOpts.SetSync(true)
 
-	var errStr *C.char
-	ldbname := C.CString(db.cfg.Path)
-	defer C.leveldb_free(unsafe.Pointer(ldbname))
+	var err error
+	db.db, err = leveldb.OpenFile(db.cfg.Path, db.opts.Opt)
 
-	db.db = C.leveldb_open(db.opts.Opt, ldbname, &errStr)
-	if errStr != nil {
-		return saveError(errStr)
-	}
-	return nil
+	return err
 }
 
 func (db *DB) initOptions(cfg *Config) *Options {
@@ -136,8 +130,7 @@ func (db *DB) Close() {
 	db.iteratorOpts.Close()
 	db.syncWriteOpts.Close()
 
-	C.leveldb_close(db.db)
-	db.db = nil
+	db.db.Close()
 }
 
 func (db *DB) Destroy() error {
@@ -145,18 +138,7 @@ func (db *DB) Destroy() error {
 
 	db.Close()
 
-	opts := NewOptions()
-	defer opts.Close()
-
-	var errStr *C.char
-	ldbname := C.CString(path)
-	defer C.leveldb_free(unsafe.Pointer(ldbname))
-
-	C.leveldb_destroy_db(opts.Opt, ldbname, &errStr)
-	if errStr != nil {
-		return saveError(errStr)
-	}
-	return nil
+	return os.RemoveAll(path)
 }
 
 func (db *DB) Clear() error {
@@ -205,15 +187,15 @@ func (db *DB) SyncDelete(key []byte) error {
 func (db *DB) NewWriteBatch() *WriteBatch {
 	wb := &WriteBatch{
 		db:     db,
-		wbatch: C.leveldb_writebatch_create(),
+		wbatch: new(leveldb.Batch),
 	}
 	return wb
 }
 
 func (db *DB) NewSnapshot() *Snapshot {
+	snap, _ := db.db.GetSnapshot()
 	s := &Snapshot{
-		db:           db,
-		snap:         C.leveldb_create_snapshot(db.db),
+		s:            snap,
 		readOpts:     NewReadOptions(),
 		iteratorOpts: NewReadOptions(),
 	}
@@ -228,71 +210,28 @@ func (db *DB) NewSnapshot() *Snapshot {
 //limit < 0, unlimit
 //offset must >= 0, if < 0, will get nothing
 func (db *DB) Iterator(min []byte, max []byte, rangeType uint8, offset int, limit int) *Iterator {
-	return newIterator(db, db.iteratorOpts, &Range{min, max, rangeType}, offset, limit, IteratorForward)
+	return newIterator(db.db.NewIterator(nil, db.iteratorOpts.Opt), &Range{min, max, rangeType}, offset, limit, IteratorForward)
 }
 
 //limit < 0, unlimit
 //offset must >= 0, if < 0, will get nothing
 func (db *DB) RevIterator(min []byte, max []byte, rangeType uint8, offset int, limit int) *Iterator {
-	return newIterator(db, db.iteratorOpts, &Range{min, max, rangeType}, offset, limit, IteratorBackward)
+	return newIterator(db.db.NewIterator(nil, db.iteratorOpts.Opt), &Range{min, max, rangeType}, offset, limit, IteratorBackward)
 }
 
 func (db *DB) put(wo *WriteOptions, key, value []byte) error {
-	var errStr *C.char
-	var k, v *C.char
-	if len(key) != 0 {
-		k = (*C.char)(unsafe.Pointer(&key[0]))
-	}
-	if len(value) != 0 {
-		v = (*C.char)(unsafe.Pointer(&value[0]))
-	}
-
-	lenk := len(key)
-	lenv := len(value)
-	C.leveldb_put(
-		db.db, wo.Opt, k, C.size_t(lenk), v, C.size_t(lenv), &errStr)
-
-	if errStr != nil {
-		return saveError(errStr)
-	}
-	return nil
+	return db.db.Put(key, value, wo.Opt)
 }
 
 func (db *DB) get(ro *ReadOptions, key []byte) ([]byte, error) {
-	var errStr *C.char
-	var vallen C.size_t
-	var k *C.char
-	if len(key) != 0 {
-		k = (*C.char)(unsafe.Pointer(&key[0]))
-	}
-
-	value := C.leveldb_get(
-		db.db, ro.Opt, k, C.size_t(len(key)), &vallen, &errStr)
-
-	if errStr != nil {
-		return nil, saveError(errStr)
-	}
-
-	if value == nil {
+	v, err := db.db.Get(key, ro.Opt)
+	if err == leveldb.ErrNotFound {
 		return nil, nil
+	} else {
+		return v, err
 	}
-
-	defer C.leveldb_free(unsafe.Pointer(value))
-	return C.GoBytes(unsafe.Pointer(value), C.int(vallen)), nil
 }
 
 func (db *DB) delete(wo *WriteOptions, key []byte) error {
-	var errStr *C.char
-	var k *C.char
-	if len(key) != 0 {
-		k = (*C.char)(unsafe.Pointer(&key[0]))
-	}
-
-	C.leveldb_delete(
-		db.db, wo.Opt, k, C.size_t(len(key)), &errStr)
-
-	if errStr != nil {
-		return saveError(errStr)
-	}
-	return nil
+	return db.db.Delete(key, wo.Opt)
 }
