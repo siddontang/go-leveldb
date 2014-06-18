@@ -53,7 +53,6 @@ func TestSimple(t *testing.T) {
 	if err := db.Delete(key); err != nil {
 		t.Fatal(err)
 	}
-
 	if v, err := db.Get(key); err != nil {
 		t.Fatal(err)
 	} else if v != nil {
@@ -239,5 +238,22 @@ func TestDestroy(t *testing.T) {
 
 	if _, err := os.Stat(db.cfg.Path); !os.IsNotExist(err) {
 		t.Fatal("must not exist")
+	}
+}
+
+func TestCloseMore(t *testing.T) {
+	cfg := new(Config)
+	cfg.Path = "/tmp/testdb1234"
+	cfg.CacheSize = 4 * 1024 * 1024
+	os.RemoveAll(cfg.Path)
+	for i := 0; i < 100; i++ {
+		db, err := OpenWithConfig(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		db.Put([]byte("key"), []byte("value"))
+
+		db.Close()
 	}
 }
