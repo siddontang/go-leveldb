@@ -115,6 +115,8 @@ func (db *DB) initOptions(cfg *Config) *Options {
 }
 
 func (db *DB) Close() {
+	db.db.Close()
+
 	db.opts.Close()
 
 	if db.cache != nil {
@@ -129,8 +131,6 @@ func (db *DB) Close() {
 	db.writeOpts.Close()
 	db.iteratorOpts.Close()
 	db.syncWriteOpts.Close()
-
-	db.db.Close()
 }
 
 func (db *DB) Destroy() error {
