@@ -156,7 +156,7 @@ func (db *DB) initOptions(cfg *Config) {
 	db.syncWriteOpts.SetSync(true)
 }
 
-func (db *DB) Close() {
+func (db *DB) Close() error {
 	if db.db != nil {
 		C.leveldb_close(db.db)
 		db.db = nil
@@ -176,6 +176,8 @@ func (db *DB) Close() {
 	db.writeOpts.Close()
 	db.iteratorOpts.Close()
 	db.syncWriteOpts.Close()
+
+	return nil
 }
 
 func (db *DB) Destroy() error {
