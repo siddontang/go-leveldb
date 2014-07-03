@@ -106,7 +106,7 @@ func TestBatch(t *testing.T) {
 	db.Delete(key1)
 }
 
-func checkIterator(it *Iterator, cv ...int) error {
+func checkIterator(it *RangeLimitIterator, cv ...int) error {
 	v := make([]string, 0, len(cv))
 	for ; it.Valid(); it.Next() {
 		k := it.Key()
@@ -139,58 +139,58 @@ func TestIterator(t *testing.T) {
 		db.Put(key, value)
 	}
 
-	var it *Iterator
+	var it *RangeLimitIterator
 
 	k := func(i int) []byte {
 		return []byte(fmt.Sprintf("key_%d", i))
 	}
 
-	it = db.Iterator(k(1), k(5), RangeClose, 0, -1)
+	it = db.RangeLimitIterator(k(1), k(5), RangeClose, 0, -1)
 	if err := checkIterator(it, 1, 2, 3, 4, 5); err != nil {
 		t.Fatal(err)
 	}
 
-	it = db.Iterator(k(1), k(5), RangeClose, 1, 3)
+	it = db.RangeLimitIterator(k(1), k(5), RangeClose, 1, 3)
 	if err := checkIterator(it, 2, 3, 4); err != nil {
 		t.Fatal(err)
 	}
 
-	it = db.Iterator(k(1), k(5), RangeLOpen, 0, -1)
+	it = db.RangeLimitIterator(k(1), k(5), RangeLOpen, 0, -1)
 	if err := checkIterator(it, 2, 3, 4, 5); err != nil {
 		t.Fatal(err)
 	}
 
-	it = db.Iterator(k(1), k(5), RangeROpen, 0, -1)
+	it = db.RangeLimitIterator(k(1), k(5), RangeROpen, 0, -1)
 	if err := checkIterator(it, 1, 2, 3, 4); err != nil {
 		t.Fatal(err)
 	}
 
-	it = db.Iterator(k(1), k(5), RangeOpen, 0, -1)
+	it = db.RangeLimitIterator(k(1), k(5), RangeOpen, 0, -1)
 	if err := checkIterator(it, 2, 3, 4); err != nil {
 		t.Fatal(err)
 	}
 
-	it = db.RevIterator(k(1), k(5), RangeClose, 0, -1)
+	it = db.RevRangeLimitIterator(k(1), k(5), RangeClose, 0, -1)
 	if err := checkIterator(it, 5, 4, 3, 2, 1); err != nil {
 		t.Fatal(err)
 	}
 
-	it = db.RevIterator(k(1), k(5), RangeClose, 1, 3)
+	it = db.RevRangeLimitIterator(k(1), k(5), RangeClose, 1, 3)
 	if err := checkIterator(it, 4, 3, 2); err != nil {
 		t.Fatal(err)
 	}
 
-	it = db.RevIterator(k(1), k(5), RangeLOpen, 0, -1)
+	it = db.RevRangeLimitIterator(k(1), k(5), RangeLOpen, 0, -1)
 	if err := checkIterator(it, 5, 4, 3, 2); err != nil {
 		t.Fatal(err)
 	}
 
-	it = db.RevIterator(k(1), k(5), RangeROpen, 0, -1)
+	it = db.RevRangeLimitIterator(k(1), k(5), RangeROpen, 0, -1)
 	if err := checkIterator(it, 4, 3, 2, 1); err != nil {
 		t.Fatal(err)
 	}
 
-	it = db.RevIterator(k(1), k(5), RangeOpen, 0, -1)
+	it = db.RevRangeLimitIterator(k(1), k(5), RangeOpen, 0, -1)
 	if err := checkIterator(it, 4, 3, 2); err != nil {
 		t.Fatal(err)
 	}
